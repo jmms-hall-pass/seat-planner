@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Seat Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <h1>Seat Planner</h1>
+  <div class="status-line">
+    <select id="roomSelect" class="room-select hidden"></select>
+    <span id="syncStatus" class="sync-status">Connecting…</span>
+    <button id="signOutBtn" class="signout-btn hidden">Sign out</button>
+  </div>
+</header>
+
+<div id="loginGate" class="login-gate hidden">
+  <div class="login-card">
+    <h2 id="loginTitle">Sign in to open your seating chart</h2>
+    <p id="loginMessage" class="hint">This app is restricted to specific Google accounts.</p>
+    <button id="googleSignInBtn" class="tool-btn primary">Sign in with Google</button>
+  </div>
+</div>
+
+<div class="app-body hidden" id="appBody">
+
+  <!-- ============ LEFT SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" data-tab="rosterPanel">Roster</button>
+      <button class="sidebar-tab" data-tab="tagPanel">Labels</button>
+      <button class="sidebar-tab" data-tab="conflictPanel">Rules</button>
+      <button id="collapseSidebarBtn" class="collapse-btn" title="Hide this panel">«</button>
+    </div>
+
+    <section class="panel tab-panel" id="rosterPanel">
+      <h2>Roster</h2>
+      <form id="addStudentForm" class="inline-form">
+        <input type="text" id="newStudentName" placeholder="Student name" autocomplete="off" required />
+        <button type="submit">Add</button>
+      </form>
+      <div id="studentList" class="student-list"></div>
+    </section>
+
+    <section class="panel tab-panel hidden" id="tagPanel">
+      <h2>Accommodation labels</h2>
+      <p class="hint">Make your own labels (e.g. "Preferential seating", "Extended time"). Check "seat near teacher" for labels that should be placed close to the teacher desk during Auto-seat.</p>
+      <form id="addTagForm" class="inline-form tag-form">
+        <input type="text" id="newTagName" placeholder="Label name" autocomplete="off" required />
+        <input type="color" id="newTagColor" value="#D4AF37" title="Label color" />
+        <label class="checkbox-label small">
+          <input type="checkbox" id="newTagPriority" />
+          seat near teacher
+        </label>
+        <button type="submit">Add label</button>
+      </form>
+      <div id="tagList" class="tag-list"></div>
+    </section>
+
+    <section class="panel tab-panel hidden" id="conflictPanel">
+      <h2>Can't sit together</h2>
+      <p class="hint">Optional. Check any students who should never end up in adjacent seats (check just two for a simple pair, or more for a whole group that should stay apart from each other), then add the rule. Flagged seats turn red.</p>
+      <div id="conflictCheckboxes" class="conflict-checkboxes"></div>
+      <button type="button" id="addConflictBtn" class="tool-btn" style="margin-top:8px;">Add rule for checked students</button>
+      <div id="conflictList" class="conflict-list" style="margin-top:10px;"></div>
+    </section>
+
+  </aside>
+  <button id="reopenSidebarBtn" class="reopen-btn hidden" title="Show roster panel">»</button>
+
+  <!-- ============ MAIN CANVAS AREA ============ -->
+  <main class="canvas-area">
+
+    <div class="toolbar">
+      <label class="size-label" for="shapeSizeSelect">Size:</label>
+      <select id="shapeSizeSelect" class="size-select" title="Physical size of the next shape you add">
+        <option value="small">Small</option>
+        <option value="medium" selected>Medium</option>
+        <option value="large">Large</option>
+      </select>
+      <button id="addChairBtn" class="tool-btn" title="Add a single seat">+ Chair</button>
+      <button id="addTableBtn" class="tool-btn" title="Add a round table group">+ Table group</button>
+      <button id="addDeskBtn" class="tool-btn" title="Add a long desk">+ Long desk</button>
+      <span class="toolbar-divider"></span>
+      <button id="shuffleBtn" class="tool-btn primary">Auto-seat</button>
+      <button id="clearSeatsBtn" class="tool-btn">Clear seats</button>
+      <span class="toolbar-divider"></span>
+      <button id="deleteModeBtn" class="tool-btn danger-toggle" title="Click a shape to delete it">Delete shape…</button>
+    </div>
+
+    <div class="room-wrap">
+      <div id="room" class="room">
+        <div id="teacherDesk" class="teacher-desk">Teacher desk</div>
+        <div id="shapeLayer" class="shape-layer"></div>
+      </div>
+    </div>
+
+    <p class="legend">
+      <span class="legend-item"><span class="swatch swatch-normal"></span> open seat</span>
+      <span class="legend-item"><span class="swatch swatch-conflict"></span> conflict — can't sit together</span>
+      <span class="legend-item"><span class="swatch swatch-empty"></span> empty seat</span>
+    </p>
+
+  </main>
+
+</div>
+
+<div id="assignPopover" class="assign-popover hidden">
+  <select id="assignSelect"></select>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
