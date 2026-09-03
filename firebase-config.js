@@ -9,12 +9,12 @@
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyDhaMUR5-FACIcmoTsZID40JD2z57m7Kuc",
+  authDomain: "seatingchart-afb1c.firebaseapp.com",
+  projectId: "seatingchart-afb1c",
+  storageBucket: "seatingchart-afb1c.firebasestorage.app",
+  messagingSenderId: "622439912973",
+  appId: "1:622439912973:web:2af446e4b16f7421cfe744",
 };
 
 // A "room code" lets you keep more than one class/room in the
@@ -22,7 +22,16 @@ const firebaseConfig = {
 // Change this per class if you teach more than one room, e.g.
 // "period-2" or "homeroom-2026". Leave as "default" if you only
 // need one.
-const ROOM_CODE = "default";
+const ROOMS = [
+  "Period 2",
+  "Period 3",
+  "Period 4",
+  "Period 5",
+  "Period 6",
+  "Polar Time",
+  "Period 9",
+  "Period 10",
+];
 
 // ============================================================
 // ACCESS CONTROL
