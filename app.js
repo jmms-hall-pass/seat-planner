@@ -10,16 +10,18 @@
 let state = {
   students: [],   // {id, name, tags:[tagId,...]}
   tags: [],       // {id, name, color, priority:boolean}
-  shapes: [],     // {id, type:'chair'|'table'|'desk', x, y, seats:[{id,dx,dy,studentId}]}
+  shapes: [],     // {id, type:'chair'|'table'|'desk', size:'small'|'medium'|'large', x, y, seats:[{id,dx,dy,studentId}]}
   conflicts: [],  // [ [studentIdA, studentIdB], ... ]
+  teacherDesk: { x: 79, y: 42 }, // draggable — auto-seat proximity is measured from here
 };
 
-const TEACHER_DESK = { x: 79, y: 42 }; // center point of the teacher desk box (matches CSS)
 const PROX_THRESHOLD = 95;             // px — freestanding seats closer than this count as "next to"
 const ROOM_SIZE = 900;
+const SIZE_FACTORS = { small: 0.72, medium: 1, large: 1.32 };
 
 let deleteMode = false;
 let dragCtx = null; // {shapeId, startX, startY, origX, origY, moved}
+let teacherDragCtx = null;
 
 /* ---------------------------------------------------------------------
    Small helpers
@@ -60,11 +62,12 @@ function findSeatOfStudent(studentId) {
 /* ---------------------------------------------------------------------
    Shape geometry
    ------------------------------------------------------------------- */
-function seatOffsets(type, count) {
+function seatOffsets(type, count, size) {
+  const f = SIZE_FACTORS[size] || 1;
   if (type === 'chair') return [{ dx: 0, dy: 0 }];
   if (type === 'table') {
-    const R = 46;
-    const seatDist = R + 34;
+    const R = 46 * f;
+    const seatDist = R + 34 * f;
     const offsets = [];
     for (let i = 0; i < count; i++) {
       const angle = (-90 + i * (360 / count)) * (Math.PI / 180);
@@ -73,7 +76,7 @@ function seatOffsets(type, count) {
     return offsets;
   }
   if (type === 'desk') {
-    const spacing = 70;
+    const spacing = 70 * f;
     const startX = -((count - 1) * spacing) / 2;
     const offsets = [];
     for (let i = 0; i < count; i++) offsets.push({ dx: startX + i * spacing, dy: 0 });
@@ -82,18 +85,25 @@ function seatOffsets(type, count) {
   return [{ dx: 0, dy: 0 }];
 }
 
-function shapeBodySize(shape) {
-  if (shape.type === 'chair') return null;
-  if (shape.type === 'table') { const d = (46 + 34) * 2 - 40; return { w: d, h: d }; }
-  if (shape.type === 'desk') return { w: (shape.seats.length - 1) * 70 + 60, h: 56 };
-  return { w: 60, h: 60 };
+function seatPixelSize(size) {
+  return Math.round(52 * (SIZE_FACTORS[size] || 1));
 }
 
-function addShape(type, seatCount) {
-  const offsets = seatOffsets(type, seatCount || 1);
+function shapeBodySize(shape) {
+  const f = SIZE_FACTORS[shape.size] || 1;
+  if (shape.type === 'chair') return null;
+  if (shape.type === 'table') { const d = (46 * f + 34 * f) * 2 - 40 * f; return { w: d, h: d }; }
+  if (shape.type === 'desk') return { w: (shape.seats.length - 1) * 70 * f + 60 * f, h: 56 * f };
+  return { w: 60 * f, h: 60 * f };
+}
+
+function addShape(type, seatCount, size) {
+  size = size || 'medium';
+  const offsets = seatOffsets(type, seatCount || 1, size);
   const shape = {
     id: uid(),
     type,
+    size,
     x: clamp(300 + Math.round((Math.random() - 0.5) * 160), 100, ROOM_SIZE - 100),
     y: clamp(320 + Math.round((Math.random() - 0.5) * 160), 100, ROOM_SIZE - 100),
     seats: offsets.map(o => ({ id: uid(), dx: o.dx, dy: o.dy, studentId: null })),
@@ -176,7 +186,7 @@ function autoSeat() {
     alert(`Heads up: there are ${state.students.length} students but only ${seatList.length} seats. ${state.students.length - seatList.length} student(s) will be left unseated.`);
   }
 
-  const byProximity = [...seatList].sort((a, b) => dist(a, TEACHER_DESK) - dist(b, TEACHER_DESK));
+  const byProximity = [...seatList].sort((a, b) => dist(a, state.teacherDesk) - dist(b, state.teacherDesk));
 
   let bestScore = Infinity;
   let bestAssignment = null;
@@ -211,7 +221,7 @@ function autoSeat() {
       const seatId = Object.keys(assignment).find(k => assignment[k] === sid);
       if (seatId) {
         const seat = seatList.find(s => s.id === seatId);
-        proxScore += dist(seat, TEACHER_DESK);
+        proxScore += dist(seat, state.teacherDesk);
       }
     });
 
@@ -347,16 +357,23 @@ function renderTags() {
    Rendering — Conflicts
    ------------------------------------------------------------------- */
 function renderConflictSelectors() {
-  ['#conflictA', '#conflictB'].forEach(sel => {
-    const el = $(sel);
-    const prev = el.value;
-    el.innerHTML = '';
-    state.students.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id; opt.textContent = s.name;
-      el.appendChild(opt);
-    });
-    if (prev) el.value = prev;
+  const wrap = $('#conflictCheckboxes');
+  if (!wrap) return;
+  const checkedIds = new Set($all('#conflictCheckboxes input:checked').map(cb => cb.value));
+  wrap.innerHTML = '';
+  if (state.students.length === 0) {
+    wrap.innerHTML = '<span class="hint" style="margin:0;">Add students to the roster first.</span>';
+    return;
+  }
+  state.students.forEach(s => {
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = s.id;
+    cb.checked = checkedIds.has(s.id);
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(s.name));
+    wrap.appendChild(label);
   });
 }
 
@@ -385,9 +402,43 @@ function renderConflictList() {
 /* ---------------------------------------------------------------------
    Rendering — Shapes & seats
    ------------------------------------------------------------------- */
+function renderTeacherDeskPosition() {
+  const el = $('#teacherDesk');
+  if (!el) return;
+  el.style.left = state.teacherDesk.x + 'px';
+  el.style.top = state.teacherDesk.y + 'px';
+}
+
+function setupTeacherDeskDrag() {
+  const el = $('#teacherDesk');
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    teacherDragCtx = { startX: e.clientX, startY: e.clientY, origX: state.teacherDesk.x, origY: state.teacherDesk.y, moved: false };
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!teacherDragCtx) return;
+    const dx = e.clientX - teacherDragCtx.startX;
+    const dy = e.clientY - teacherDragCtx.startY;
+    if (Math.hypot(dx, dy) > 5) teacherDragCtx.moved = true;
+    if (!teacherDragCtx.moved) return;
+    const room = $('#room').getBoundingClientRect();
+    const scale = ROOM_SIZE / room.width;
+    state.teacherDesk.x = clamp(teacherDragCtx.origX + dx * scale, 20, ROOM_SIZE - 20);
+    state.teacherDesk.y = clamp(teacherDragCtx.origY + dy * scale, 20, ROOM_SIZE - 20);
+    renderTeacherDeskPosition();
+  });
+  el.addEventListener('pointerup', () => {
+    if (!teacherDragCtx) return;
+    teacherDragCtx = null;
+    scheduleSave();
+  });
+}
+
 function renderShapes() {
   const layer = $('#shapeLayer');
   layer.innerHTML = '';
+  renderTeacherDeskPosition();
   const conflictSeatIds = computeConflictSeatIds();
 
   state.shapes.forEach(sh => {
@@ -420,6 +471,10 @@ function renderShapes() {
       seatEl.className = 'seat' + (seat.studentId ? '' : ' empty') + (conflictSeatIds.has(seat.id) ? ' conflict' : '') + (deleteMode ? ' delete-target' : '');
       seatEl.style.left = (sh.x + seat.dx) + 'px';
       seatEl.style.top = (sh.y + seat.dy) + 'px';
+      const px = seatPixelSize(sh.size);
+      seatEl.style.width = px + 'px';
+      seatEl.style.height = px + 'px';
+      seatEl.style.fontSize = Math.max(0.55, 0.68 * (px / 52)) + 'rem';
       seatEl.dataset.shapeId = sh.id;
       seatEl.dataset.seatId = seat.id;
 
@@ -584,23 +639,34 @@ $('#addTagForm').addEventListener('submit', (e) => {
   renderAll(); scheduleSave();
 });
 
-$('#addConflictForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const a = $('#conflictA').value, b = $('#conflictB').value;
-  if (!a || !b || a === b) return;
-  if (isConflictPair(a, b)) return;
-  state.conflicts.push([a, b]);
+$('#addConflictBtn').addEventListener('click', () => {
+  const checked = $all('#conflictCheckboxes input:checked').map(cb => cb.value);
+  if (checked.length < 2) {
+    alert('Check at least two students to create a "can\'t sit together" rule.');
+    return;
+  }
+  let added = 0;
+  for (let i = 0; i < checked.length; i++) {
+    for (let j = i + 1; j < checked.length; j++) {
+      if (!isConflictPair(checked[i], checked[j])) {
+        state.conflicts.push([checked[i], checked[j]]);
+        added++;
+      }
+    }
+  }
+  $all('#conflictCheckboxes input:checked').forEach(cb => { cb.checked = false; });
   renderConflictList(); renderShapes(); scheduleSave();
 });
 
-$('#addChairBtn').addEventListener('click', () => addShape('chair'));
+function selectedSize() { return $('#shapeSizeSelect').value || 'medium'; }
+$('#addChairBtn').addEventListener('click', () => addShape('chair', 1, selectedSize()));
 $('#addTableBtn').addEventListener('click', () => {
   const n = parseInt(prompt('How many seats at this table group?', '4'), 10);
-  addShape('table', clamp(isNaN(n) ? 4 : n, 3, 8));
+  addShape('table', clamp(isNaN(n) ? 4 : n, 3, 8), selectedSize());
 });
 $('#addDeskBtn').addEventListener('click', () => {
   const n = parseInt(prompt('How many seats at this long desk?', '3'), 10);
-  addShape('desk', clamp(isNaN(n) ? 3 : n, 2, 6));
+  addShape('desk', clamp(isNaN(n) ? 3 : n, 2, 6), selectedSize());
 });
 $('#shuffleBtn').addEventListener('click', autoSeat);
 $('#clearSeatsBtn').addEventListener('click', () => {
@@ -612,6 +678,27 @@ $('#deleteModeBtn').addEventListener('click', () => {
   $('#deleteModeBtn').classList.toggle('active', deleteMode);
   renderShapes();
 });
+setupTeacherDeskDrag();
+
+/* ---------------------------------------------------------------------
+   Sidebar tabs + collapse
+   ------------------------------------------------------------------- */
+$all('.sidebar-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $all('.sidebar-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.tab;
+    $all('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== target));
+  });
+});
+$('#collapseSidebarBtn').addEventListener('click', () => {
+  $('#sidebar').classList.add('collapsed');
+  $('#reopenSidebarBtn').classList.remove('hidden');
+});
+$('#reopenSidebarBtn').addEventListener('click', () => {
+  $('#sidebar').classList.remove('collapsed');
+  $('#reopenSidebarBtn').classList.add('hidden');
+});
 
 /* ---------------------------------------------------------------------
    Firebase sync (falls back to local-only mode if config is a placeholder)
@@ -619,6 +706,11 @@ $('#deleteModeBtn').addEventListener('click', () => {
 let docRef = null;
 let saveTimer = null;
 let applyingRemote = false;
+let unsubscribeSnapshot = null;
+
+function slugify(name) {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'default';
+}
 
 function scheduleSave() {
   if (!docRef) return;
@@ -651,6 +743,105 @@ function showApp() {
   $('#signOutBtn').classList.remove('hidden');
 }
 
+function subscribeToRoom(roomName) {
+  if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+  const slug = slugify(roomName);
+  localStorage.setItem('seatplanner_room', roomName);
+  const db = firebase.firestore();
+  docRef = db.collection('classrooms').doc(slug);
+  setStatus('Loading…', '');
+
+  unsubscribeSnapshot = docRef.onSnapshot(snap => {
+    if (snap.exists) {
+      applyingRemote = true;
+      const data = snap.data();
+      state = {
+        students: data.students || [],
+        tags: data.tags || [],
+        shapes: (data.shapes || []).map(sh => ({ size: 'medium', ...sh })),
+        conflicts: data.conflicts || [],
+        teacherDesk: data.teacherDesk || { x: 79, y: 42 },
+      };
+      renderAll();
+      applyingRemote = false;
+      setStatus('Synced', 'ok');
+    } else {
+      state = { students: [], tags: [], shapes: [], conflicts: [], teacherDesk: { x: 79, y: 42 } };
+      renderAll();
+      docRef.set(state).then(() => setStatus('Synced', 'ok'));
+    }
+  }, err => {
+    console.error(err);
+    setStatus('Sync error — check Firestore rules', 'err');
+  });
+}
+
+let currentRoomList = [];
+
+function loadRoomList(callback) {
+  const db = firebase.firestore();
+  const metaRef = db.collection('classrooms').doc('_room_list');
+  metaRef.get().then(snap => {
+    let list;
+    if (snap.exists && Array.isArray(snap.data().names) && snap.data().names.length) {
+      list = snap.data().names;
+    } else {
+      list = (typeof ROOMS !== 'undefined' && ROOMS.length) ? ROOMS : ['Default'];
+      metaRef.set({ names: list }).catch(err => console.error('Could not seed period list', err));
+    }
+    callback(list, metaRef);
+  }).catch(err => {
+    console.error(err);
+    callback((typeof ROOMS !== 'undefined' && ROOMS.length) ? ROOMS : ['Default'], metaRef);
+  });
+}
+
+function populateRoomSelect(list, selected) {
+  const select = $('#roomSelect');
+  select.innerHTML = '';
+  list.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    select.appendChild(opt);
+  });
+  const addOpt = document.createElement('option');
+  addOpt.value = '__add__';
+  addOpt.textContent = '+ Add new period…';
+  select.appendChild(addOpt);
+  select.value = list.includes(selected) ? selected : list[0];
+  select.classList.remove('hidden');
+}
+
+function setupRoomSelector() {
+  loadRoomList((list, metaRef) => {
+    currentRoomList = list;
+    const saved = localStorage.getItem('seatplanner_room');
+    const initial = list.includes(saved) ? saved : list[0];
+    populateRoomSelect(list, initial);
+
+    $('#roomSelect').onchange = () => {
+      const val = $('#roomSelect').value;
+      if (val === '__add__') {
+        const name = (prompt('Name this new class period (e.g. "Period 7"):') || '').trim();
+        if (!name) {
+          populateRoomSelect(currentRoomList, localStorage.getItem('seatplanner_room') || currentRoomList[0]);
+          return;
+        }
+        if (!currentRoomList.includes(name)) {
+          currentRoomList = [...currentRoomList, name];
+          metaRef.set({ names: currentRoomList }).catch(err => console.error('Could not save period list', err));
+        }
+        populateRoomSelect(currentRoomList, name);
+        subscribeToRoom(name);
+        return;
+      }
+      subscribeToRoom(val);
+    };
+
+    subscribeToRoom(initial);
+  });
+}
+
 function initFirebase() {
   const isPlaceholder = !firebaseConfig || firebaseConfig.apiKey === 'YOUR_API_KEY';
   if (isPlaceholder) {
@@ -680,7 +871,9 @@ function initFirebase() {
 
     auth.onAuthStateChanged(user => {
       if (!user) {
+        if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
         docRef = null;
+        $('#roomSelect').classList.add('hidden');
         showLoginGate('This app is restricted to specific Google accounts.');
         setStatus('Signed out', '');
         return;
@@ -689,6 +882,7 @@ function initFirebase() {
       const email = (user.email || '').toLowerCase().trim();
       const isAllowed = allowList.length === 0 || allowList.includes(email);
       if (!isAllowed) {
+        if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
         docRef = null;
         showLoginGate(`${user.email} is not authorized to use this app. Ask the owner to add your email.`);
         setStatus('Not authorized', 'err');
@@ -697,29 +891,7 @@ function initFirebase() {
       }
 
       showApp();
-      const db = firebase.firestore();
-      docRef = db.collection('classrooms').doc(typeof ROOM_CODE !== 'undefined' ? ROOM_CODE : 'default');
-
-      docRef.onSnapshot(snap => {
-        if (snap.exists) {
-          applyingRemote = true;
-          const data = snap.data();
-          state = {
-            students: data.students || [],
-            tags: data.tags || [],
-            shapes: data.shapes || [],
-            conflicts: data.conflicts || [],
-          };
-          renderAll();
-          applyingRemote = false;
-          setStatus('Synced', 'ok');
-        } else {
-          docRef.set(state).then(() => setStatus('Synced', 'ok'));
-        }
-      }, err => {
-        console.error(err);
-        setStatus('Sync error — check Firestore rules', 'err');
-      });
+      setupRoomSelector();
     });
   } catch (err) {
     console.error(err);
