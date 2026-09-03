@@ -45,5 +45,5 @@ const ROOMS = [
 // must match or a permitted person will sign in here but still
 // get blocked by Firestore.
 const ALLOWED_EMAILS = [
-  "jaf2jc@bearworks.sparcc.org",
+  "jaf2jc@bearworks.jackson.sparcc.org",
 ];
