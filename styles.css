@@ -109,8 +109,24 @@ button, input, select{ font-family: inherit; }
 /* ===================== Layout ===================== */
 .app-body{
   display: flex;
+  flex-direction: column;
   height: calc(100vh - 58px);
 }
+.app-row{
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.guest-banner{
+  background: #FBF3D9;
+  color: #6B5716;
+  border-bottom: 2px solid var(--mustard);
+  padding: 8px 18px;
+  font-size: 0.82rem;
+  text-align: center;
+}
+.guest-banner.hidden{ display:none; }
 
 .sidebar{
   width: 340px;
@@ -497,6 +513,6 @@ button, input, select{ font-family: inherit; }
 ::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 5px; }
 
 @media (max-width: 900px){
-  .app-body{ flex-direction: column; height: auto; }
+  .app-row{ flex-direction: column; height: auto; }
   .sidebar{ width: auto; border-right:none; border-bottom: 1px solid var(--line); }
 }
