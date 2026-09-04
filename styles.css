@@ -109,13 +109,7 @@ button, input, select{ font-family: inherit; }
 /* ===================== Layout ===================== */
 .app-body{
   display: flex;
-  flex-direction: column;
   height: calc(100vh - 58px);
-}
-.app-row{
-  display: flex;
-  flex: 1;
-  min-height: 0;
 }
 
 .guest-banner{
@@ -424,7 +418,7 @@ button, input, select{ font-family: inherit; }
   touch-action: none;
 }
 .teacher-desk:active{ cursor: grabbing; }
-.shape-layer{ position:absolute; inset:0; }
+.shape-layer{ position:absolute; inset:0; pointer-events: none; }
 
 /* shapes */
 .shape{
@@ -432,6 +426,7 @@ button, input, select{ font-family: inherit; }
   cursor: grab;
   user-select:none;
   touch-action: none;
+  pointer-events: auto;
 }
 .shape:active{ cursor: grabbing; }
 .shape.delete-target:hover{ outline: 2px dashed var(--conflict-red); outline-offset: 3px; }
@@ -460,6 +455,7 @@ button, input, select{ font-family: inherit; }
   width: 52px; height: 52px;
   transform: translate(-50%, -50%);
   touch-action: none;
+  pointer-events: auto;
   border: 2px solid var(--blue-slate);
   background: var(--white);
   display:flex;
@@ -513,6 +509,6 @@ button, input, select{ font-family: inherit; }
 ::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 5px; }
 
 @media (max-width: 900px){
-  .app-row{ flex-direction: column; height: auto; }
+  .app-body{ flex-direction: column; height: auto; }
   .sidebar{ width: auto; border-right:none; border-bottom: 1px solid var(--line); }
 }
